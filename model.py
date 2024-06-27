@@ -18,11 +18,12 @@ class StockModel(nn.Module):
         self.fc2 = nn.Linear(258, 2)
     
     def forward(self, x):
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).requires_grad_()
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).requires_grad_()
 
-        out, _ = self.lstm(x, (h0, c0))
+        out, _ = self.lstm(x, (h0.detach(), c0.detach()))
         out = out[:, -1, :]
         out = torch.relu(self.fc1(out))
         out = self.fc2(out)
+        # out = nn.Softmax(1)(out)
         return out

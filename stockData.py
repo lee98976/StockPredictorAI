@@ -11,13 +11,15 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.timeframe import TimeFrame
 
 class StockData(Dataset):
-    def __init__(self, sample=10):
+    def __init__(self, isRealTime, sample=10):
         self.sampleSize = sample
         self.data_client = StockHistoricalDataClient('PKZ5HQ89HCEAW6H0QSPI', '1kqpWNWgjTJ6fnEKcJCc5H2lPD719D6iDHE9Ka9L')
+        self.isRealTime = isRealTime
         self.answer, self.inputData = self.returnRandomData()
+        # print(numpy.ndarray(3, self.inputData).size)
+
         #NORMALIZE LATER
-        
-        
+            
     def __len__(self):
         return self.sampleSize
     
@@ -35,44 +37,34 @@ class StockData(Dataset):
         return bars
 
     def returnRandomData(self):
-        data = {"NVDA" : []}
+        data = self.requestData("NVDA", TimeFrame.Day, datetime(2020, 1, 1), datetime(datetime.now().year, datetime.now().month, datetime.now().day))
+        data = data["NVDA"]
+        print(len(data), type(data))
+        finalAnswers, finalInputs = [], []
+        
+        if not self.isRealTime: amount = self.sampleSize
+        else: amount = 1
 
-        def helper():
-            try:
-                if len(data["NVDA"]) != 5:
-                    return False
-            except:
-                return False
-            return True
-
-        finalInputs = []
-        finalAnswers = []
-        for i in range(self.sampleSize):
-            #Date
-            print(i)
-            data = {"NVDA" : []}
-            while not helper():
-                year = random.randint(2020, 2023)
-                month = random.randint(1, 12)
-                day = random.randint(1, 28)
-
-                date1 = datetime(year, month, day, 7)
-                date2 = datetime(year, month, day, 12)
-
-                data = self.requestData("NVDA", TimeFrame.Hour, date1, date2)
-
-            #Preprocess
-            #print(data["NVDA"])
-
+        for i in range(amount):
+            if not self.isRealTime: 
+                rangeStart = random.randint(1, 1000)
+                dataRange = data[rangeStart:rangeStart+101]
+            else:
+                dataRange = data[-100:]
             temp = []
-            for candleStick in data["NVDA"]:
+
+            for candleStick in dataRange:
                 temp.append([candleStick.high, candleStick.low, candleStick.open, candleStick.close])
 
-            answer = temp.pop()[3]
-            if answer >= temp[0][3]:
-                answer = 0
+            if not self.isRealTime:
+                answer = temp.pop()[3]
+                #Answer = [buy, sell]
+                if answer >= temp[-1][3]:
+                    answer = [1, 0]
+                else:
+                    answer = [0, 1]
             else:
-                answer = 1
+                answer = None
 
             finalAnswers.append(answer)
             finalInputs.append(temp)
