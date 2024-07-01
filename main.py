@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 import numpy as np
 import torch
+import discord
 import json
 import torch.optim as optim
 from stockData import StockData, RealTimeData
@@ -44,8 +45,8 @@ def createOrder(stock, qty, side, time_in_force):
     return market_order_data
 
 def normalize_data(data, labels):
-    data_scaler = MinMaxScaler(feature_range=(0, 1))
-    labels_scaler = MinMaxScaler(feature_range=(0, 1))
+    data_scaler = MinMaxScaler(feature_range=(-1, 1))
+    labels_scaler = MinMaxScaler(feature_range=(-1, 1))
     
     # Flatten data for scaling
     data = np.array(data).reshape(-1, 365 * 4)
@@ -75,7 +76,7 @@ def getOrders(status, side):
     return orders
 
 def fit_transform(x):
-    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaler = MinMaxScaler(feature_range=(-1, 1))
     return scaler.fit_transform(x)
 
 def loadData():
@@ -202,7 +203,7 @@ def prediction(symbol):
                 return "This stock is a strong sell!"
             # print(f"Prediction: {output.item()}")
 
-
+#Setup; Do not comment
 data, labels = loadData()
 data, labels, data_scaler, labels_scaler = normalize_data(data, labels)
 
@@ -218,38 +219,43 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 summary(model, (10, 365, 4))
 
-trainer(train_loader)
+loadModel()
+
+#Comment out what you dont want to run
+# trainer(train_loader)
 # evaluation(train_loader)
 company_list = ["LUMN", "NVDA", "GOOGL", "ZM"] #Sell and buy
 for comp in company_list:
-    decision = prediction(comp) # TODO: FIX THIS
+    decision = prediction(comp)
     print(decision)
 
 # Discord Bot!
 
-# intents = discord.Intents.default()
-# intents.message_content = True
+intents = discord.Intents.default()
+intents.message_content = True
 
-# client = discord.Client(intents=intents)
+client = discord.Client(intents=intents)
 
-# @client.event
-# async def on_ready():
-#     print(f'Bot logged in as {client.user}.')
+@client.event
+async def on_ready():
+    print(f'Bot logged in as {client.user}.')
 
-# @client.event
-# async def on_message(message):
-#     if message.author == client.user or message.author != "lee98976":
-#         return
+@client.event
+async def on_message(message):
+    if message.author == client.user or str(message.author) != "lee98976":
+        print(str(message.author))
+        return
+    
+    if message.content.startswith('$Stock '):
+        try:
+            stockSymbol = message.content.split()[1]
+            message1 = prediction(stockSymbol)
+            await message.channel.send(message1)
+        except:
+            print("Invalid Stock")
 
-#     if message.content.startswith('$Stock '):
-#         try:
-#             if message.content.split()[1] == "NVDA":
-#                 await message.channel.send('Prediction: ')
-#         except:
-#             pass
-
-# client.run('')
-# print("Bot logged out.")
+client.run()
+print("Bot logged out.")
 
 '''
 To-Do:

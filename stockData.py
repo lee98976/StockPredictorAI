@@ -47,15 +47,16 @@ class StockData(Dataset):
         for i in range(self.sampleSize):
             data = allData[random.choice(list(allData.data.keys()))] #Select a random stock to take the 365 days from
             
-            rangeStart = random.randint(1, len(data) - 365)
-            dataRange = data[rangeStart:rangeStart + 365]
+            rangeStart = random.randint(1, len(data) - 400)
+            dataRange = data[rangeStart:rangeStart + 380]
 
             temp = []
 
             for candleStick in dataRange:
                 temp.append([candleStick.high, candleStick.low, candleStick.open, candleStick.close])
 
-            answer = temp[-1][3]  # Use the closing price of the last day as the label for regression
+            answer = temp.pop()[3]  # Use the closing price of the last day as the label for regression
+            temp = temp[0:365]
 
             finalAnswers.append(answer)
             finalInputs.append(temp)
