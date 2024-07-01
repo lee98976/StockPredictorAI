@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import json
 import torch.optim as optim
-from stockData import StockData
+from stockData import StockData, RealTimeData
 from model import StockModel
 import torch.nn as nn
 from alpaca.data.historical import StockHistoricalDataClient
@@ -78,7 +78,7 @@ def fit_transform(x):
 def loadData():
     if input("Do you want to create a new test set or not? Y/N: ") == "Y":
         number = int(input("How many test cases?: "))
-        test = StockData(False, number)
+        test = StockData(["NVDA", "AMD", "INTC", "GOOGL", "AMC", "GME", "IBM", "AAPL", "MSFT"], number)
         data = test.inputData
         labels = test.answer
 
@@ -162,20 +162,33 @@ def evaluation(train_loader):
 
     print(f"Evaluation Loss: {running_loss/len(train_loader):.4f}")
 
-def prediction():
+def prediction(symbol):
     global model
     loadModel()
     model.eval()
 
     with torch.no_grad():
-        test = StockData(False, 1)
-        data = test.inputData
-        dataset = TensorDataset(torch.tensor(data, dtype=torch.float32))
-        train_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+        test = RealTimeData(symbol)
+        data = [test.inputData[0], test.inputData[0]]
+        label = [test.answer[0], test.answer[0]]
+        data = torch.tensor(data, dtype=torch.float32)
+        label = torch.tensor(label, dtype=torch.float32)
+        dataset = TensorDataset(data.unsqueeze(0), label.unsqueeze(0))
+        train_loader = DataLoader(dataset, batch_size=2, shuffle=True)
 
-        for inputs in train_loader:
-            output = model(inputs[0])
-            print(f"Prediction: {output.item()}")
+        for inputs, labels in train_loader:
+            output = model(inputs)
+            if output[0] >= 0.6:
+                return "This stock is a strong buy!"
+            elif output[0] < 0.6 and output[0] > 0.3:
+                return "This stock is a weak buy!"
+            elif -0.3 <= output[0] and output[0] <= 0.3:
+                return "Hold this stock."
+            elif -0.6 < output[0] and -output[0] < -0.3:
+                return "This stock is a weak sell!"
+            else:
+                return "This stock is a strong sell!"
+            # print(f"Prediction: {output.item()}")
 
 
 data, labels = loadData()
@@ -186,16 +199,17 @@ labels = torch.tensor(labels, dtype=torch.float32)
 
 dataset = TensorDataset(data, labels)
 train_loader = DataLoader(dataset, batch_size=10, shuffle=True)
-model = StockModel(4, 1024, 3)
+model = StockModel(4, 256, 2)
 
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 summary(model, (10, 365, 4))
 
-trainer(train_loader)
-evaluation(train_loader)
-prediction()
+#trainer(train_loader)
+#evaluation(train_loader)
+decision = prediction("ZI") # TODO: FIX THIS
+print(decision)
 
 # Discord Bot!
 

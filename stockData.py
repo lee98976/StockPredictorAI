@@ -12,15 +12,63 @@ from alpaca.data.timeframe import TimeFrame
 from alpaca.data.enums import Adjustment
 
 class StockData(Dataset):
-    def __init__(self, isRealTime, sample=10):
+    def __init__(self, stockSymbols, sample=10):
         self.sampleSize = sample
+        self.stockSymbols = stockSymbols
         self.data_client = StockHistoricalDataClient('PKZ5HQ89HCEAW6H0QSPI', '1kqpWNWgjTJ6fnEKcJCc5H2lPD719D6iDHE9Ka9L')
-        self.isRealTime = isRealTime
         self.answer, self.inputData = self.returnRandomData()
         # print(numpy.ndarray(3, self.inputData).size)
 
-        #NORMALIZE LATER
             
+    def __len__(self):
+        return self.sampleSize
+    
+    def __getitem__(self, idx):
+        return self.inputData[idx], self.answer[idx]
+
+    def requestData(self, stock : list, timeframe, start : datetime, end : datetime):
+        request_params = StockBarsRequest(
+            symbol_or_symbols = stock,
+            timeframe = timeframe,
+            start=start,
+            end=end,
+            adjustment=Adjustment('all')
+        )
+
+        bars = self.data_client.get_stock_bars(request_params)
+        return bars
+
+    def returnRandomData(self):
+        allData = self.requestData(self.stockSymbols, TimeFrame.Day, datetime(2020, 1, 1), datetime(datetime.now().year, datetime.now().month, datetime.now().day))
+        # data = data["NVDA"]
+
+        finalAnswers, finalInputs = [], []
+
+        for i in range(self.sampleSize):
+            data = allData[random.choice(list(allData.data.keys()))] #Select a random stock to take the 365 days from
+            
+            rangeStart = random.randint(1, len(data) - 365)
+            dataRange = data[rangeStart:rangeStart + 365]
+
+            temp = []
+
+            for candleStick in dataRange:
+                temp.append([candleStick.high, candleStick.low, candleStick.open, candleStick.close])
+
+            answer = temp[-1][3]  # Use the closing price of the last day as the label for regression
+
+            finalAnswers.append(answer)
+            finalInputs.append(temp)
+
+        return finalAnswers, finalInputs
+
+class RealTimeData(Dataset):
+    def __init__(self, stockSymbol, sample=10):
+        self.sampleSize = sample
+        self.stockSymbol = stockSymbol
+        self.data_client = StockHistoricalDataClient('PKZ5HQ89HCEAW6H0QSPI', '1kqpWNWgjTJ6fnEKcJCc5H2lPD719D6iDHE9Ka9L')
+        self.answer, self.inputData = self.returnRandomData()
+
     def __len__(self):
         return self.sampleSize
     
@@ -39,34 +87,16 @@ class StockData(Dataset):
         return bars
 
     def returnRandomData(self):
-        data = self.requestData("NVDA", TimeFrame.Day, datetime(2020, 1, 1), datetime(datetime.now().year, datetime.now().month, datetime.now().day))
-        data = data["NVDA"]
-        print(len(data), type(data))
-        finalAnswers, finalInputs = [], []
-        
-        if not self.isRealTime: 
-            amount = self.sampleSize
-        else: 
-            amount = 1
+        data = self.requestData(self.stockSymbol, TimeFrame.Day, datetime(2020, 1, 1), datetime(datetime.now().year, datetime.now().month, datetime.now().day))
+        data = data[self.stockSymbol]
 
-        for i in range(amount):
-            if not self.isRealTime: 
-                rangeStart = random.randint(1, len(data) - 365)
-                dataRange = data[rangeStart:rangeStart + 365]
-            else:
-                dataRange = data[-365:]
+        finalAnswers, temp = [], []
 
-            temp = []
+        dataRange = data[-365:]
 
-            for candleStick in dataRange:
-                temp.append([candleStick.high, candleStick.low, candleStick.open, candleStick.close])
+        for candleStick in dataRange:
+            temp.append([candleStick.high, candleStick.low, candleStick.open, candleStick.close])
 
-            if not self.isRealTime:
-                answer = temp[-1][3]  # Use the closing price of the last day as the label for regression
-            else:
-                answer = None
+        finalAnswers.append([2])
 
-            finalAnswers.append(answer)
-            finalInputs.append(temp)
-
-        return finalAnswers, finalInputs
+        return finalAnswers, temp
