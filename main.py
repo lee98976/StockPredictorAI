@@ -2,9 +2,7 @@ import os
 import random
 import time
 from datetime import datetime
-
-import discord
-import numpy
+import numpy as np
 import torch
 import json
 import torch.optim as optim
@@ -25,7 +23,6 @@ from torchinfo import summary
 
 torch.set_default_device('cpu')
 
-#DO NOT USE REAL MONEY WITH THIS: THIS IS A PAPER ACCOUNT
 api_key = 'PKZ5HQ89HCEAW6H0QSPI'
 api_secret = '1kqpWNWgjTJ6fnEKcJCc5H2lPD719D6iDHE9Ka9L'
 
@@ -36,34 +33,47 @@ data_client = StockHistoricalDataClient(api_key, api_secret)
 
 account = trading_client.get_account()
 
-def createOrder(stock : str, qty : int, side, time_in_force):
-    global trading_client
+def createOrder(stock, qty, side, time_in_force):
     orderData = MarketOrderRequest(
-        symbol = stock,
-        qty = qty,
-        side = side,
-        time_in_force = time_in_force
+        symbol=stock,
+        qty=qty,
+        side=side,
+        time_in_force=time_in_force
     )
     market_order_data = trading_client.submit_order(order_data=orderData)
     return market_order_data
 
-def deleteOrder(stockID : str):
-    global trading_client
+def normalize_data(data, labels):
+    data_scaler = MinMaxScaler(feature_range=(0, 1))
+    labels_scaler = MinMaxScaler(feature_range=(0, 1))
+    
+    # Flatten data for scaling
+    data = np.array(data).reshape(-1, 365 * 4)  
+    labels = np.array(labels).reshape(-1, 1)
+    
+    # Fit and transform the data
+    data = data_scaler.fit_transform(data).reshape(-1, 365, 4)
+    labels = labels_scaler.fit_transform(labels)
+    
+    return data, labels, data_scaler, labels_scaler
+
+def deleteOrder(stockID):
     trading_client.cancel_order_by_id(stockID)
 
 def deleteAll():
-    global trading_client
     trading_client.cancel_orders()
 
 def getOrders(status, side):
-    global trading_client
     requestParams = GetOrdersRequest(
         status=status,
         side=side
     )
-
     orders = trading_client.get_orders(filter=requestParams)
     return orders
+
+def fit_transform(x):
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    return scaler.fit_transform(x)
 
 def loadData():
     if input("Do you want to create a new test set or not? Y/N: ") == "Y":
@@ -85,18 +95,12 @@ def loadData():
             labels = json.load(json_file)
     return data, labels
 
-# data, labels = loadData()
-
-# print(data)
-# print(labels)
-
 def loadModel():
     global model
     try:
         print("Attempting to load model...")
         model1 = torch.jit.load('ModelSave/model_scripted.pt')
         model = model1
-        model
         print("Load Successful!")
     except:
         print("No file detected.")
@@ -104,9 +108,9 @@ def loadModel():
 def trainer(train_loader):
     global model
     loadModel()
-    
-    epoches = int(input("How many epoches do you want to train for?: "))
-    for epoch in range(epoches):
+
+    epochs = int(input("How many epochs do you want to train for?: "))
+    for epoch in range(epochs):
         model.train()
         running_loss = 0.0
 
@@ -114,47 +118,49 @@ def trainer(train_loader):
             optimizer.zero_grad()
 
             outputs = model(inputs)
-            loss = nn.functional.binary_cross_entropy_with_logits(outputs, labels)
+            
+            # print(f"Outputs shape: {outputs.shape}")
+            # print(f"Labels shape: {labels.shape}")
+            
+            loss = criterion(outputs, labels)
+
+            # print(f"Outputs: {outputs[:5].detach().numpy()}")  # Print first few outputs for debugging
+            # print(f"Labels: {labels[:5].numpy()}")  # Print first few labels for debugging
+            # print(f"Loss: {loss.item()}")  # Print the loss for debugging
 
             loss.backward()
             optimizer.step()
 
             running_loss += loss.item()
-        
-        print("Epoch: " + str(epoch+1) + "/" + str(epoches) + ", Loss: " + str(running_loss/len(train_loader)))
 
-    print("The model has finished cooking.")
+        print(f"Epoch: {epoch+1}/{epochs}, Loss: {running_loss/len(train_loader):.4f}")
 
-    model_scripted = torch.jit.script(model) # Export to TorchScript
-    model_scripted.save('ModelSave/model_scripted.pt') # Save
-    print("Saving...")
+    print("The model has finished training.")
+
+    model_scripted = torch.jit.script(model)
+    model_scripted.save('ModelSave/model_scripted.pt')
+    print("Model saved.")
 
 def evaluation(train_loader):
     global model
     loadModel()
     model.eval()
-    correct = 0
-    total = 0
+    running_loss = 0.0
 
     with torch.no_grad():
-        running_loss = 0.0
-        for inputs, labels in train_loader: #Create test instead
-            model.eval()
-            output = model(inputs)
-            test_loss = criterion(output, labels)
-            running_loss += test_loss
-    
-    print("Accuracy: " + str(1 - running_loss/len(train_loader)))
+        for inputs, labels in train_loader:
+            outputs = model(inputs)
+            test_loss = criterion(outputs, labels)
+            running_loss += test_loss.item()
 
-def requestData(self, stock : str, timeframe, start : datetime, end : datetime):
-        request_params = StockBarsRequest(
-            symbol_or_symbols = [stock],
-            timeframe = timeframe,
-            start=start,
-            end=end,
-        )
-        bars = data_client.get_stock_bars(request_params)
-        return bars
+            # Denormalize for comparison
+            denorm_outputs = labels_scaler.inverse_transform(outputs.detach().numpy())
+            denorm_labels = labels_scaler.inverse_transform(labels.detach().numpy())
+
+            # print(f"Denormalized Outputs: {denorm_outputs[:5]}")
+            # print(f"Denormalized Labels: {denorm_labels[:5]}")
+
+    print(f"Evaluation Loss: {running_loss/len(train_loader):.4f}")
 
 def prediction():
     global model
@@ -164,27 +170,32 @@ def prediction():
     with torch.no_grad():
         test = StockData(False, 1)
         data = test.inputData
-        labels = test.answer
-        dataset = TensorDataset(data, labels)
-        train_loader = DataLoader(dataset, batch_size=1, shuffle=True)
-        for inputs, labels in train_loader:
-            output = model(inputs)
-            print(output)
-        
+        dataset = TensorDataset(torch.tensor(data, dtype=torch.float32))
+        train_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+        for inputs in train_loader:
+            output = model(inputs[0])
+            print(f"Prediction: {output.item()}")
+
 
 data, labels = loadData()
-data, labels = torch.tensor(data, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
+data, labels, data_scaler, labels_scaler = normalize_data(data, labels)
+
+data = torch.tensor(data, dtype=torch.float32)
+labels = torch.tensor(labels, dtype=torch.float32)
+
 dataset = TensorDataset(data, labels)
 train_loader = DataLoader(dataset, batch_size=10, shuffle=True)
-model = StockModel(4, 256, 2)
+model = StockModel(4, 1024, 3)
 
-optimizer = optim.Adam(model.parameters(), lr=0.00001)
+criterion = nn.MSELoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# summary(model, (100, 4, 4), device="cpu")
-summary(model, (100, 4, 4))
+summary(model, (10, 365, 4))
 
 trainer(train_loader)
 evaluation(train_loader)
+prediction()
 
 # Discord Bot!
 
@@ -215,6 +226,9 @@ evaluation(train_loader)
 '''
 To-Do:
 1. Organize everything into functions
+2. Load from JSON file
+3. Improve model
+4. Make Discord Bot
 2. Load from JSON file #
 3. Improve model #
 4. Make Discord Bot #

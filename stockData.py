@@ -38,44 +38,33 @@ class StockData(Dataset):
         bars = self.data_client.get_stock_bars(request_params)
         return bars
 
-    # def fit_transform(self, x): #Normalize data to -1 to 1
-    #     mu = numpy.mean(x, axis=(0), keepdims=True)
-    #     sd = numpy.std(x, axis=(0), keepdims=True)
-    #     normalized_x = (x - mu)/sd
-    #     return normalized_x
-
     def returnRandomData(self):
         data = self.requestData("NVDA", TimeFrame.Day, datetime(2020, 1, 1), datetime(datetime.now().year, datetime.now().month, datetime.now().day))
         data = data["NVDA"]
         print(len(data), type(data))
         finalAnswers, finalInputs = [], []
         
-        if not self.isRealTime: amount = self.sampleSize
-        else: amount = 1
+        if not self.isRealTime: 
+            amount = self.sampleSize
+        else: 
+            amount = 1
 
         for i in range(amount):
             if not self.isRealTime: 
-                rangeStart = random.randint(1, 600)
-                dataRange = data[rangeStart:rangeStart+365]
+                rangeStart = random.randint(1, len(data) - 365)
+                dataRange = data[rangeStart:rangeStart + 365]
             else:
                 dataRange = data[-365:]
+
             temp = []
 
             for candleStick in dataRange:
                 temp.append([candleStick.high, candleStick.low, candleStick.open, candleStick.close])
 
             if not self.isRealTime:
-                answer = temp.pop()[3]
-                #Answer = [buy, sell]
-                if answer >= temp[-1][3]:
-                    answer = [1, 0]
-                else:
-                    answer = [0, 1]
+                answer = temp[-1][3]  # Use the closing price of the last day as the label for regression
             else:
                 answer = None
-
-            # answer = numpy.array(answer)
-            # answer = self.fit_transform(answer).tolist()
 
             finalAnswers.append(answer)
             finalInputs.append(temp)
