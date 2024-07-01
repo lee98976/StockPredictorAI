@@ -9,6 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.timeframe import TimeFrame
+from alpaca.data.enums import Adjustment
 
 class StockData(Dataset):
     def __init__(self, isRealTime, sample=10):
@@ -32,9 +33,16 @@ class StockData(Dataset):
             timeframe = timeframe,
             start=start,
             end=end,
+            adjustment=Adjustment('all')
         )
         bars = self.data_client.get_stock_bars(request_params)
         return bars
+
+    # def fit_transform(self, x): #Normalize data to -1 to 1
+    #     mu = numpy.mean(x, axis=(0), keepdims=True)
+    #     sd = numpy.std(x, axis=(0), keepdims=True)
+    #     normalized_x = (x - mu)/sd
+    #     return normalized_x
 
     def returnRandomData(self):
         data = self.requestData("NVDA", TimeFrame.Day, datetime(2020, 1, 1), datetime(datetime.now().year, datetime.now().month, datetime.now().day))
@@ -47,10 +55,10 @@ class StockData(Dataset):
 
         for i in range(amount):
             if not self.isRealTime: 
-                rangeStart = random.randint(1, 1000)
-                dataRange = data[rangeStart:rangeStart+101]
+                rangeStart = random.randint(1, 600)
+                dataRange = data[rangeStart:rangeStart+365]
             else:
-                dataRange = data[-100:]
+                dataRange = data[-365:]
             temp = []
 
             for candleStick in dataRange:
@@ -65,6 +73,9 @@ class StockData(Dataset):
                     answer = [0, 1]
             else:
                 answer = None
+
+            # answer = numpy.array(answer)
+            # answer = self.fit_transform(answer).tolist()
 
             finalAnswers.append(answer)
             finalInputs.append(temp)

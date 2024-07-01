@@ -65,17 +65,6 @@ def getOrders(status, side):
     orders = trading_client.get_orders(filter=requestParams)
     return orders
 
-def fit_transform(x):
-    mu = numpy.mean(x, axis=(0), keepdims=True)
-    sd = numpy.std(x, axis=(0), keepdims=True)
-    normalized_x = (x - mu)/sd
-    return normalized_x
-
-
-model = StockModel(4, 1024, 3)
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-
 def loadData():
     if input("Do you want to create a new test set or not? Y/N: ") == "Y":
         number = int(input("How many test cases?: "))
@@ -125,7 +114,7 @@ def trainer(train_loader):
             optimizer.zero_grad()
 
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = nn.functional.binary_cross_entropy_with_logits(outputs, labels)
 
             loss.backward()
             optimizer.step()
@@ -177,28 +166,25 @@ def prediction():
         data = test.inputData
         labels = test.answer
         dataset = TensorDataset(data, labels)
-        train_loader = DataLoader(dataset, batch_size=10, shuffle=True)
+        train_loader = DataLoader(dataset, batch_size=1, shuffle=True)
         for inputs, labels in train_loader:
             output = model(inputs)
             print(output)
         
 
-def main():
-    data, labels = loadData()
-    data, labels = torch.tensor(data, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
-    dataset = TensorDataset(data, labels)
-    train_loader = DataLoader(dataset, batch_size=10, shuffle=True)
-    model = StockModel(4, 1024, 3)
+data, labels = loadData()
+data, labels = torch.tensor(data, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
+dataset = TensorDataset(data, labels)
+train_loader = DataLoader(dataset, batch_size=10, shuffle=True)
+model = StockModel(4, 256, 2)
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.00001)
+optimizer = optim.Adam(model.parameters(), lr=0.00001)
 
-    # summary(model, (100, 4, 4), device="cpu")
-    summary(model, (100, 4, 4))
+# summary(model, (100, 4, 4), device="cpu")
+summary(model, (100, 4, 4))
 
-    trainer(train_loader)
-    evaluation(train_loader)
-main()
+trainer(train_loader)
+evaluation(train_loader)
 
 # Discord Bot!
 
