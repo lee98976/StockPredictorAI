@@ -124,8 +124,8 @@ def trainer(train_loader):
             
             loss = criterion(outputs, labels)
 
-            # print(f"Outputs: {outputs[:5].detach().numpy()}")  # Print first few outputs for debugging
-            # print(f"Labels: {labels[:5].numpy()}")  # Print first few labels for debugging
+            # print(f"Outputs: {outputs[:5].detach()}")  # Print first few outputs for debugging
+            # print(f"Labels: {labels[:5]}")  # Print first few labels for debugging
             # print(f"Loss: {loss.item()}")  # Print the loss for debugging
 
             loss.backward()
@@ -178,6 +178,7 @@ def prediction(symbol):
 
         for inputs, labels in train_loader:
             output = model(inputs)
+            print(output.detach().numpy())
             if output[0] >= 0.6:
                 return "This stock is a strong buy!"
             elif output[0] < 0.6 and output[0] > 0.3:
@@ -206,10 +207,12 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 summary(model, (10, 365, 4))
 
-#trainer(train_loader)
+trainer(train_loader)
 #evaluation(train_loader)
-decision = prediction("ZI") # TODO: FIX THIS
-print(decision)
+company_list = ["LUMN", "AA", "AACT", "AMZN", "ANSS", "ABT", "APO", "ADM", "ARES"]
+for comp in company_list:
+    decision = prediction(comp) # TODO: FIX THIS
+    print(decision)
 
 # Discord Bot!
 
