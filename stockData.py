@@ -63,17 +63,10 @@ class StockData(Dataset):
         return finalAnswers, finalInputs
 
 class RealTimeData(Dataset):
-    def __init__(self, stockSymbol, sample=10):
-        self.sampleSize = sample
+    def __init__(self, stockSymbol):
         self.stockSymbol = stockSymbol
         self.data_client = StockHistoricalDataClient('PKZ5HQ89HCEAW6H0QSPI', '1kqpWNWgjTJ6fnEKcJCc5H2lPD719D6iDHE9Ka9L')
         self.answer, self.inputData = self.returnRandomData()
-
-    def __len__(self):
-        return self.sampleSize
-    
-    def __getitem__(self, idx):
-        return self.inputData[idx], self.answer[idx]
 
     def requestData(self, stock : str, timeframe, start : datetime, end : datetime):
         request_params = StockBarsRequest(
@@ -97,6 +90,6 @@ class RealTimeData(Dataset):
         for candleStick in dataRange:
             temp.append([candleStick.high, candleStick.low, candleStick.open, candleStick.close])
 
-        finalAnswers.append([2])
+        finalAnswers.append([0])
 
         return finalAnswers, temp

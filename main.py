@@ -48,8 +48,11 @@ def normalize_data(data, labels):
     labels_scaler = MinMaxScaler(feature_range=(0, 1))
     
     # Flatten data for scaling
-    data = np.array(data).reshape(-1, 365 * 4)  
+    data = np.array(data).reshape(-1, 365 * 4)
     labels = np.array(labels).reshape(-1, 1)
+
+    if data.shape == (1, 1460):
+        data = data.reshape(1460, 1)
     
     # Fit and transform the data
     data = data_scaler.fit_transform(data).reshape(-1, 365, 4)
@@ -122,11 +125,12 @@ def trainer(train_loader):
             # print(f"Outputs shape: {outputs.shape}")
             # print(f"Labels shape: {labels.shape}")
             
+            # print(outputs)
             loss = criterion(outputs, labels)
 
-            # print(f"Outputs: {outputs[:5].detach()}")  # Print first few outputs for debugging
-            # print(f"Labels: {labels[:5]}")  # Print first few labels for debugging
-            # print(f"Loss: {loss.item()}")  # Print the loss for debugging
+            print(f"Outputs: {outputs[:5].detach()}")  # Print first few outputs for debugging
+            print(f"Labels: {labels[:5]}")  # Print first few labels for debugging
+            print(f"Loss: {loss.item()}")  # Print the loss for debugging
 
             loss.backward()
             optimizer.step()
@@ -153,39 +157,46 @@ def evaluation(train_loader):
             test_loss = criterion(outputs, labels)
             running_loss += test_loss.item()
 
+            print(f"Outputs: {outputs[:5]}")
+            print(f"Labels: {labels[:5]}")
+
             # Denormalize for comparison
             denorm_outputs = labels_scaler.inverse_transform(outputs.detach().numpy())
             denorm_labels = labels_scaler.inverse_transform(labels.detach().numpy())
 
-            # print(f"Denormalized Outputs: {denorm_outputs[:5]}")
-            # print(f"Denormalized Labels: {denorm_labels[:5]}")
+            print(f"Denormalized Outputs: {denorm_outputs[:5]}")
+            print(f"Denormalized Labels: {denorm_labels[:5]}")
 
     print(f"Evaluation Loss: {running_loss/len(train_loader):.4f}")
 
 def prediction(symbol):
     global model
-    loadModel()
-    model.eval()
+    # loadModel()
 
     with torch.no_grad():
+        model.eval()
         test = RealTimeData(symbol)
-        data = [test.inputData[0], test.inputData[0]]
-        label = [test.answer[0], test.answer[0]]
+        # print(test.inputData, test.answer)
+        data = [test.inputData]
+        label = [test.answer]
+        data, label, data_scaler, labels_scaler = normalize_data(data, label)
         data = torch.tensor(data, dtype=torch.float32)
         label = torch.tensor(label, dtype=torch.float32)
-        dataset = TensorDataset(data.unsqueeze(0), label.unsqueeze(0))
+        dataset = TensorDataset(data, label)
         train_loader = DataLoader(dataset, batch_size=2, shuffle=True)
 
+
         for inputs, labels in train_loader:
+            # print(inputs)
             output = model(inputs)
-            print(output.detach().numpy())
-            if output[0] >= 0.6:
+            print(labels_scaler.inverse_transform(output.detach().numpy()))
+            if output[0] >= 0.3:
                 return "This stock is a strong buy!"
-            elif output[0] < 0.6 and output[0] > 0.3:
+            elif output[0] < 0.3 and output[0] > 0.15:
                 return "This stock is a weak buy!"
-            elif -0.3 <= output[0] and output[0] <= 0.3:
+            elif -0.15 <= output[0] and output[0] <= 0.15:
                 return "Hold this stock."
-            elif -0.6 < output[0] and -output[0] < -0.3:
+            elif -0.3 < output[0] and -output[0] < -0.15:
                 return "This stock is a weak sell!"
             else:
                 return "This stock is a strong sell!"
@@ -208,8 +219,8 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 summary(model, (10, 365, 4))
 
 trainer(train_loader)
-#evaluation(train_loader)
-company_list = ["LUMN", "AA", "AACT", "AMZN", "ANSS", "ABT", "APO", "ADM", "ARES"]
+# evaluation(train_loader)
+company_list = ["LUMN", "NVDA", "GOOGL", "ZM"] #Sell and buy
 for comp in company_list:
     decision = prediction(comp) # TODO: FIX THIS
     print(decision)

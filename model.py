@@ -16,6 +16,7 @@ class StockModel(nn.Module):
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
         self.fc1 = nn.Linear(hidden_size, 1)
         self.init_weights()  # Initialize weights
+        
 
     def init_weights(self):
         for name, param in self.lstm.named_parameters():
